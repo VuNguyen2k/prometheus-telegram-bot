@@ -440,6 +440,46 @@ async def cmd_latest(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _send_long(update.message, text)
 
 
+PWM_ENABLE_PATH = "/sys/class/hwmon/hwmon0/pwm2_enable"
+PWM_VALUE_PATH = "/sys/class/hwmon/hwmon0/pwm2"
+
+
+async def cmd_fanset(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Set fan speed via PWM. Usage: /fanset <1-255>"""
+    if not ctx.args or len(ctx.args) != 1:
+        await update.message.reply_text("Usage: /fanset <1-255>")
+        return
+
+    try:
+        value = int(ctx.args[0])
+    except ValueError:
+        await update.message.reply_text("Invalid value. Must be an integer 1-255.")
+        return
+
+    if not 1 <= value <= 255:
+        await update.message.reply_text("Value must be between 1 and 255.")
+        return
+
+    try:
+        with open(PWM_ENABLE_PATH, "w") as f:
+            f.write("1")
+        with open(PWM_VALUE_PATH, "w") as f:
+            f.write(str(value))
+        await update.message.reply_text(f"Fan PWM set to {value}/255.")
+    except Exception as exc:
+        await update.message.reply_text(f"Error: {exc}")
+
+
+async def cmd_fanreset(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reset fan to automatic control. Usage: /fanreset"""
+    try:
+        with open(PWM_ENABLE_PATH, "w") as f:
+            f.write("5")
+        await update.message.reply_text("Fan reset to automatic control.")
+    except Exception as exc:
+        await update.message.reply_text(f"Error: {exc}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -447,7 +487,9 @@ async def cmd_latest(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 def main() -> None:
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("latest", cmd_latest))
-    log.info("Bot started – listening for /latest")
+    app.add_handler(CommandHandler("fanset", cmd_fanset))
+    app.add_handler(CommandHandler("fanreset", cmd_fanreset))
+    log.info("Bot started – listening for /latest, /fanset, /fanreset")
     app.run_polling()
 
 
